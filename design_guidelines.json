@@ -1,0 +1,157 @@
+{
+  "design_system": {
+    "identity": {
+      "name": "Jai Shree Ram Geleyara Balaga",
+      "persona": "E1 - The Anti-AI Designer",
+      "core_philosophy": "Modern Devotional - Fusion of Saffron Warmth and Fintech Precision",
+      "emotional_tone": "Trust, Unity, Celebration, Transparency"
+    },
+    "typography": {
+      "headings": {
+        "font_family": "Rozha One, serif",
+        "weight": "400",
+        "usage": "Main page titles, Festival names, Slogans",
+        "letter_spacing": "tracking-tight"
+      },
+      "body": {
+        "font_family": "Outfit, sans-serif",
+        "weight": "400, 500, 700",
+        "usage": "UI elements, lists, forms, descriptions"
+      },
+      "mono": {
+        "font_family": "JetBrains Mono, monospace",
+        "usage": "Transaction IDs, Dates"
+      }
+    },
+    "colors": {
+      "palette": {
+        "primary": {
+          "default": "#E67E22",
+          "hover": "#D35400",
+          "foreground": "#FFFFFF",
+          "description": "Deep Saffron/Marigold - Energy & Devotion"
+        },
+        "secondary": {
+          "default": "#FDFBF7",
+          "foreground": "#2C1810",
+          "description": "Warm Cream - Backgrounds (Avoids sterile white)"
+        },
+        "accent": {
+          "default": "#922B21",
+          "foreground": "#FFFFFF",
+          "description": "Deep Maroon - Contrast & Authority"
+        },
+        "neutral": {
+          "50": "#FAFAFA",
+          "100": "#F5F5F5",
+          "200": "#E5E5E5",
+          "800": "#2C1810",
+          "900": "#1A0F0A"
+        },
+        "status": {
+          "success": "#27AE60",
+          "pending": "#C0392B",
+          "warning": "#F39C12"
+        }
+      },
+      "gradients": {
+        "festival": "linear-gradient(135deg, #E67E22 0%, #922B21 100%)",
+        "glass": "rgba(255, 255, 255, 0.7)"
+      }
+    },
+    "layout": {
+      "spacing_scale": "Generous (2x standard)",
+      "container_padding": "p-6 md:p-12",
+      "border_radius": {
+        "card": "rounded-2xl",
+        "button": "rounded-full",
+        "input": "rounded-xl"
+      },
+      "grids": {
+        "dashboard": "grid-cols-1 md:grid-cols-3 gap-6",
+        "members": "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+      }
+    },
+    "visual_enhancers": {
+      "shadows": {
+        "card": "0 10px 30px -10px rgba(146, 43, 33, 0.1)",
+        "floating": "0 20px 40px -10px rgba(0,0,0,0.2)"
+      },
+      "textures": {
+        "noise": "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E\")"
+      },
+      "glassmorphism": "backdrop-blur-xl bg-white/80 border border-white/20 shadow-lg"
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-primary text-white hover:bg-primary/90 shadow-lg hover:shadow-xl transition-all duration-300 rounded-full px-8 py-3 font-bold tracking-wide",
+      "secondary": "bg-white text-accent border-2 border-accent/20 hover:border-accent hover:bg-accent/5 rounded-full px-8 py-3 font-medium"
+    },
+    "cards": {
+      "member": "bg-white rounded-2xl p-6 shadow-card hover:shadow-floating transition-all duration-300 border border-orange-100 relative overflow-hidden group",
+      "savings": "bg-white rounded-xl p-4 border-l-4 border-l-primary shadow-sm flex justify-between items-center"
+    },
+    "inputs": {
+      "default": "bg-neutral-50 border-neutral-200 focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-xl h-12 px-4 transition-all"
+    },
+    "navigation": {
+      "mobile_bottom": "fixed bottom-6 left-4 right-4 h-16 bg-white/90 backdrop-blur-xl rounded-full shadow-2xl flex justify-around items-center z-50 border border-white/20"
+    }
+  },
+  "assets": {
+    "images": {
+      "hero_bg": "https://images.unsplash.com/photo-1730680297749-000b7dd4d87e?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "community_hero": "https://images.unsplash.com/photo-1582990523136-6be67a5d605b?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "ganesha_festival": "https://images.unsplash.com/photo-1759674887945-9056cc46a4ee?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "savings_icon": "https://images.pexels.com/photos/6534318/pexels-photo-6534318.jpeg"
+    },
+    "icons": {
+      "library": "lucide-react",
+      "style": "Stroke width 1.5px, rounded caps"
+    }
+  },
+  "pages": {
+    "login": {
+      "layout": "Split screen (Desktop) or Full Image Overlay (Mobile)",
+      "bg_image": "hero_bg",
+      "elements": ["Logo", "Phone Input", "Admin Login Link (Subtle)"]
+    },
+    "home": {
+      "sections": [
+        "Hero Carousel (Slogans)",
+        "Quick Stats (Bento Grid)",
+        "Recent Achievements",
+        "Donation CTA"
+      ]
+    },
+    "members": {
+      "layout": "Grid of Cards",
+      "card_elements": ["Avatar", "Name", "Role", "Phone (Click to Call)", "Status Badge"]
+    },
+    "savings": {
+      "layout": "List View (Month by Month)",
+      "elements": ["Month Name", "Status (Paid/Pending)", "Amount (₹100)", "Pay Button (if pending)"]
+    },
+    "festivals": {
+      "layout": "Timeline / Vertical Scroll",
+      "style": "Immersive, Dark Mode override for this section"
+    }
+  },
+  "universal_guidelines": {
+    "testing": "All interactive elements MUST have data-testid attribute (e.g., data-testid='login-btn')",
+    "motion": "NO transition: all. Use specific transitions (transform, opacity, colors).",
+    "notifications": "Use 'sonner' for all toast notifications.",
+    "accessibility": "Ensure text contrast > 4.5:1. Use 'Outfit' for body text for readability.",
+    "mobile_first": "Design for 360px width first. No horizontal scrolling.",
+    "admin_security": "Admin login is hidden/subtle. Password 'shrujan@2004' is hardcoded in backend, not frontend."
+  },
+  "instructions_to_main_agent": {
+    "step_1": "Install dependencies: lucide-react, framer-motion, clsx, tailwind-merge, sonner",
+    "step_2": "Setup Tailwind theme with the colors defined above.",
+    "step_3": "Create the 'Layout' component with the Mobile Bottom Nav.",
+    "step_4": "Build the 'Auth' flow first (Login/Register/Pending).",
+    "step_5": "Implement the 'Members' and 'Savings' modules.",
+    "step_6": "Add the 'Admin' dashboard with charts."
+  }
+}
