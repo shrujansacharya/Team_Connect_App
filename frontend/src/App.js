@@ -1,52 +1,96 @@
-import { useEffect } from "react";
-import "@/App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "axios";
-
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
-
-const Home = () => {
-  const helloWorldApi = async () => {
-    try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
-    }
-  };
-
-  useEffect(() => {
-    helloWorldApi();
-  }, []);
-
-  return (
-    <div>
-      <header className="App-header">
-        <a
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
-      </header>
-    </div>
-  );
-};
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'sonner';
+import { ProtectedRoute, AdminRoute } from './components/ProtectedRoute';
+import { Login } from './pages/Login';
+import { Register } from './pages/Register';
+import { Pending } from './pages/Pending';
+import { Home } from './pages/Home';
+import { Members } from './pages/Members';
+import { Savings } from './pages/Savings';
+import { Festivals } from './pages/Festivals';
+import { AdminDashboard } from './pages/AdminDashboard';
+import { AdminUsers } from './pages/AdminUsers';
+import { AdminContent } from './pages/AdminContent';
+import { getToken } from './utils/auth';
+import './App.css';
 
 function App() {
+  const isAuthenticated = !!getToken();
+
   return (
     <div className="App">
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
-          </Route>
+          <Route
+            path="/"
+            element={
+              isAuthenticated ? <Navigate to="/home" replace /> : <Navigate to="/login" replace />
+            }
+          />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/pending" element={<Pending />} />
+          
+          <Route
+            path="/home"
+            element={
+              <ProtectedRoute>
+                <Home />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/members"
+            element={
+              <ProtectedRoute>
+                <Members />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/savings"
+            element={
+              <ProtectedRoute>
+                <Savings />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/festivals"
+            element={
+              <ProtectedRoute>
+                <Festivals />
+              </ProtectedRoute>
+            }
+          />
+          
+          <Route
+            path="/admin/dashboard"
+            element={
+              <AdminRoute>
+                <AdminDashboard />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/users"
+            element={
+              <AdminRoute>
+                <AdminUsers />
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/content"
+            element={
+              <AdminRoute>
+                <AdminContent />
+              </AdminRoute>
+            }
+          />
         </Routes>
       </BrowserRouter>
+      <Toaster position="top-center" richColors />
     </div>
   );
 }
