@@ -1,8 +1,10 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, status
+from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
+import razorpay
 import os
 import logging
 from pathlib import Path
@@ -15,12 +17,18 @@ from passlib.context import CryptContext
 import calendar
 
 ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+load_dotenv(ROOT_DIR / '.env', override=True)
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
+
+# Razorpay Client
+rzp_client = razorpay.Client(auth=(
+    os.environ.get("RAZORPAY_KEY_ID", "rzp_test_placeholder"),
+    os.environ.get("RAZORPAY_KEY_SECRET", "placeholder_secret")
+))
 
 # Create the main app without a prefix
 app = FastAPI()
@@ -34,7 +42,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "your-secret-key-change-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
-ADMIN_PASSWORD = "shrujan@2004"
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "shrujan@2004")
 
 # Models
 class UserCreate(BaseModel):
@@ -72,9 +80,13 @@ class MonthlyPayment(BaseModel):
     month: int
     year: int
     amount: float = 100.0
-    status: str = "paid"
+    status: str = "pending" # pending, success, failed
     payment_date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    transaction_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    transaction_id: Optional[str] = None
+    method: Optional[str] = "UPI"
+    razorpay_order_id: Optional[str] = None
+    razorpay_payment_id: Optional[str] = None
+    razorpay_signature: Optional[str] = None
 
 class Festival(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -136,6 +148,8 @@ class AchievementCreate(BaseModel):
 
 # Helper functions
 def hash_password(password: str) -> str:
+    if len(password.encode('utf-8')) > 72:
+        raise HTTPException(status_code=400, detail="Password is too long (max 72 bytes)")
     return pwd_context.hash(password)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -282,15 +296,28 @@ async def delete_user(user_id: str, current_user: dict = Depends(get_admin_user)
     return {"message": "User deleted successfully"}
 
 # Members routes
-@api_router.get("/members", response_model=List[User])
+@api_router.get("/members")
 async def get_members(current_user: dict = Depends(get_current_approved_user)):
+    now = datetime.now(timezone.utc)
+    current_month = now.month
+    current_year = now.year
+
     members = await db.users.find(
         {"is_approved": True, "role": "user"},
         {"_id": 0, "password": 0}
     ).to_list(1000)
+
+    # Get all payments for current month to optimize
+    payments = await db.monthly_payments.find(
+        {"month": current_month, "year": current_year, "status": "success"},
+        {"user_id": 1, "_id": 0}
+    ).to_list(1000)
+    paid_user_ids = {p["user_id"] for p in payments}
+
     for member in members:
         if isinstance(member["created_at"], str):
             member["created_at"] = datetime.fromisoformat(member["created_at"])
+        member["has_paid_current_month"] = member["id"] in paid_user_ids
     return members
 
 # Monthly savings routes
@@ -300,18 +327,18 @@ async def get_current_month_savings(current_user: dict = Depends(get_current_app
     current_month = now.month
     current_year = now.year
     
-    # Check if user has paid this month
+    # Check for successful payment this month
     payment = await db.monthly_payments.find_one(
         {
             "user_id": current_user["id"],
             "month": current_month,
-            "year": current_year
+            "year": current_year,
+            "status": "success"
         },
         {"_id": 0}
     )
     
     month_name = calendar.month_name[current_month]
-    
     return {
         "month": current_month,
         "year": current_year,
@@ -320,36 +347,60 @@ async def get_current_month_savings(current_user: dict = Depends(get_current_app
         "payment": payment
     }
 
-@api_router.post("/savings/pay")
-async def pay_monthly_savings(current_user: dict = Depends(get_current_approved_user)):
-    now = datetime.now(timezone.utc)
-    current_month = now.month
-    current_year = now.year
-    
-    # Check if already paid
-    existing_payment = await db.monthly_payments.find_one(
-        {
-            "user_id": current_user["id"],
-            "month": current_month,
-            "year": current_year
-        },
-        {"_id": 0}
-    )
-    
-    if existing_payment:
-        raise HTTPException(status_code=400, detail="Payment already made for this month")
-    
-    payment = MonthlyPayment(
-        user_id=current_user["id"],
-        month=current_month,
-        year=current_year
-    )
-    
-    payment_dict = payment.model_dump()
-    payment_dict["payment_date"] = payment_dict["payment_date"].isoformat()
-    
-    await db.monthly_payments.insert_one(payment_dict)
-    return {"message": "Payment successful", "transaction_id": payment.transaction_id}
+class OrderCreate(BaseModel):
+    amount: int
+
+@api_router.post("/savings/create-order")
+async def create_razorpay_order(data: OrderCreate, current_user: dict = Depends(get_current_approved_user)):
+    try:
+        order = rzp_client.order.create({
+            'amount': data.amount * 100,
+            'currency': 'INR',
+            'payment_capture': 1
+        })
+        now = datetime.now(timezone.utc)
+        payment = MonthlyPayment(
+            user_id=current_user["id"],
+            month=now.month,
+            year=now.year,
+            amount=data.amount,
+            status="pending",
+            razorpay_order_id=order['id']
+        )
+        await db.monthly_payments.insert_one(payment.model_dump())
+        return order
+    except Exception as e:
+        logger.error(f"Error creating order: {str(e)}")
+        raise HTTPException(status_code=500, detail="Payment gateway error")
+
+class PaymentVerify(BaseModel):
+    razorpay_order_id: str
+    razorpay_payment_id: str
+    razorpay_signature: str
+
+@api_router.post("/savings/verify-payment")
+async def verify_payment(data: PaymentVerify, current_user: dict = Depends(get_current_approved_user)):
+    try:
+        rzp_client.utility.verify_payment_signature(data.model_dump())
+        await db.monthly_payments.update_one(
+            {"razorpay_order_id": data.razorpay_order_id},
+            {
+                "$set": {
+                    "status": "success",
+                    "razorpay_payment_id": data.razorpay_payment_id,
+                    "razorpay_signature": data.razorpay_signature,
+                    "transaction_id": data.razorpay_payment_id,
+                    "payment_date": datetime.now(timezone.utc)
+                }
+            }
+        )
+        return {"status": "success"}
+    except Exception as e:
+        await db.monthly_payments.update_one(
+            {"razorpay_order_id": data.razorpay_order_id},
+            {"$set": {"status": "failed"}}
+        )
+        raise HTTPException(status_code=400, detail="Payment verification failed")
 
 @api_router.get("/savings/analytics")
 async def get_savings_analytics(current_user: dict = Depends(get_admin_user)):
@@ -360,22 +411,22 @@ async def get_savings_analytics(current_user: dict = Depends(get_admin_user)):
     # Get total approved members
     total_members = await db.users.count_documents({"is_approved": True, "role": "user"})
     
-    # Get payments for current month
+    # Get payments for current month (success only)
     payments = await db.monthly_payments.count_documents(
-        {"month": current_month, "year": current_year}
+        {"month": current_month, "year": current_year, "status": "success"}
     )
     
-    # Get total collected this month
+    # Get total collected this month (success only)
     pipeline = [
-        {"$match": {"month": current_month, "year": current_year}},
+        {"$match": {"month": current_month, "year": current_year, "status": "success"}},
         {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
     ]
     result = await db.monthly_payments.aggregate(pipeline).to_list(1)
     total_collected = result[0]["total"] if result else 0
     
-    # Get total collected this year
+    # Get total collected this year (success only)
     pipeline_year = [
-        {"$match": {"year": current_year}},
+        {"$match": {"year": current_year, "status": "success"}},
         {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
     ]
     result_year = await db.monthly_payments.aggregate(pipeline_year).to_list(1)
@@ -460,6 +511,8 @@ async def get_festival(festival_id: str, current_user: dict = Depends(get_curren
     
     return Festival(**festival)
 
+
+
 @api_router.delete("/festivals/{festival_id}")
 async def delete_festival(festival_id: str, current_user: dict = Depends(get_admin_user)):
     result = await db.festivals.delete_one({"id": festival_id})
@@ -498,6 +551,51 @@ async def delete_expense(expense_id: str, current_user: dict = Depends(get_admin
     return {"message": "Expense deleted successfully"}
 
 # Home content routes
+
+# Models for Landing Page
+class TeamMember(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    role: str
+    image_url: Optional[str] = None
+    order: int = 0
+
+class TeamMemberCreate(BaseModel):
+    name: str
+    role: str
+    image_url: Optional[str] = None
+    order: int = 0
+
+class Service(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    title: str
+    description: str
+    icon_name: str
+
+class ServiceCreate(BaseModel):
+    title: str
+    description: str
+    icon_name: str
+
+class SiteConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = "config"
+    logo_url: Optional[str] = None
+    hero_image_url: Optional[str] = None
+    banner_url: Optional[str] = None
+    tagline: Optional[str] = None
+    about_title: Optional[str] = "About Us"
+    about_description: Optional[str] = None
+    member_count_override: Optional[int] = None
+    years_experience: int = 0
+    contact_email: Optional[str] = None
+    upi_id: Optional[str] = "example@upi"
+    merchant_name: Optional[str] = "Jai Shree Ram Geleyara Balaga"
+    razorpay_key_id: Optional[str] = None
+
+# Slogans
 @api_router.post("/slogans", response_model=Slogan)
 async def create_slogan(slogan_data: SloganCreate, current_user: dict = Depends(get_admin_user)):
     slogan = Slogan(**slogan_data.model_dump())
@@ -517,6 +615,7 @@ async def delete_slogan(slogan_id: str, current_user: dict = Depends(get_admin_u
         raise HTTPException(status_code=404, detail="Slogan not found")
     return {"message": "Slogan deleted successfully"}
 
+# Achievements
 @api_router.post("/achievements", response_model=Achievement)
 async def create_achievement(achievement_data: AchievementCreate, current_user: dict = Depends(get_admin_user)):
     achievement = Achievement(**achievement_data.model_dump())
@@ -540,6 +639,68 @@ async def delete_achievement(achievement_id: str, current_user: dict = Depends(g
         raise HTTPException(status_code=404, detail="Achievement not found")
     return {"message": "Achievement deleted successfully"}
 
+# Site Configuration Routes
+@api_router.get("/landing/config", response_model=SiteConfig)
+async def get_site_config():
+    config = await db.site_config.find_one({"id": "config"}, {"_id": 0})
+    if not config:
+        config = SiteConfig().model_dump()
+    
+    # Use environment variables as fallback for sensitive keys
+    if not config.get("razorpay_key_id"):
+        config["razorpay_key_id"] = os.environ.get("RAZORPAY_KEY_ID")
+        
+    return SiteConfig(**config)
+
+@api_router.put("/landing/config", response_model=SiteConfig)
+async def update_site_config(config_data: SiteConfig, current_user: dict = Depends(get_admin_user)):
+    config_dict = config_data.model_dump()
+    config_dict["id"] = "config"
+    await db.site_config.update_one(
+        {"id": "config"},
+        {"$set": config_dict},
+        upsert=True
+    )
+    return config_data
+
+# Team Member Routes
+@api_router.get("/landing/team", response_model=List[TeamMember])
+async def get_team_members():
+    members = await db.team_members.find({}, {"_id": 0}).sort("order", 1).to_list(1000)
+    return members
+
+@api_router.post("/landing/team", response_model=TeamMember)
+async def create_team_member(member_data: TeamMemberCreate, current_user: dict = Depends(get_admin_user)):
+    member = TeamMember(**member_data.model_dump())
+    await db.team_members.insert_one(member.model_dump())
+    return member
+
+@api_router.delete("/landing/team/{member_id}")
+async def delete_team_member(member_id: str, current_user: dict = Depends(get_admin_user)):
+    result = await db.team_members.delete_one({"id": member_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Team member not found")
+    return {"message": "Team member deleted"}
+
+# Service Routes
+@api_router.get("/landing/services", response_model=List[Service])
+async def get_services():
+    services = await db.services.find({}, {"_id": 0}).to_list(1000)
+    return services
+
+@api_router.post("/landing/services", response_model=Service)
+async def create_service(service_data: ServiceCreate, current_user: dict = Depends(get_admin_user)):
+    service = Service(**service_data.model_dump())
+    await db.services.insert_one(service.model_dump())
+    return service
+
+@api_router.delete("/landing/services/{service_id}")
+async def delete_service(service_id: str, current_user: dict = Depends(get_admin_user)):
+    result = await db.services.delete_one({"id": service_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Service not found")
+    return {"message": "Service deleted"}
+
 # Include the router in the main app
 app.include_router(api_router)
 
@@ -558,6 +719,32 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+@app.middleware("http")
+async def log_requests(request, call_next):
+    logger.info(f"Request: {request.method} {request.url}")
+    try:
+        response = await call_next(request)
+        logger.info(f"Response status: {response.status_code}")
+        return response
+    except Exception as e:
+        logger.error(f"Request failed: {str(e)}")
+        raise e
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    logger.error(f"Unhandled error: {str(exc)}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"}
+    )
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    # In production, reload should be False
+    is_dev = os.environ.get("DEV_MODE", "true").lower() == "true"
+    uvicorn.run("server:app", host="0.0.0.0", port=port, reload=is_dev)

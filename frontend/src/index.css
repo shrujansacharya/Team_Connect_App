@@ -20,6 +20,7 @@ code {
 
 @layer base {
     :root {
+        scroll-behavior: smooth;
         --background: 35 20% 98%;
         --foreground: 20 14% 17%;
         --card: 0 0% 100%;

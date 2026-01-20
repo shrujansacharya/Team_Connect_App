@@ -1,0 +1,6 @@
+2026-01-20 20:14:56,739 - server - INFO - Request: POST http://localhost:8000/api/auth/admin-login
+2026-01-20 20:14:56,740 - server - INFO - Admin login attempt. Provided length: 12, Expected length: 26
+2026-01-20 20:14:56,740 - server - INFO - Response status: 401
+2026-01-20 20:16:41,257 - server - INFO - Request: POST http://localhost:8000/api/auth/admin-login
+2026-01-20 20:16:41,259 - server - INFO - Admin login attempt. Provided length: 12, Expected length: 12
+2026-01-20 20:16:41,267 - server - INFO - Response status: 200

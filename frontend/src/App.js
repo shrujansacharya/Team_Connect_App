@@ -14,6 +14,8 @@ import { AdminContent } from './pages/AdminContent';
 import { getToken } from './utils/auth';
 import './App.css';
 
+import { LandingPage } from './pages/LandingPage';
+
 function App() {
   const isAuthenticated = !!getToken();
 
@@ -21,16 +23,11 @@ function App() {
     <div className="App">
       <BrowserRouter>
         <Routes>
-          <Route
-            path="/"
-            element={
-              isAuthenticated ? <Navigate to="/home" replace /> : <Navigate to="/login" replace />
-            }
-          />
+          <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/pending" element={<Pending />} />
-          
+
           <Route
             path="/home"
             element={
@@ -63,7 +60,7 @@ function App() {
               </ProtectedRoute>
             }
           />
-          
+
           <Route
             path="/admin/dashboard"
             element={

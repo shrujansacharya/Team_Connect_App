@@ -4,6 +4,17 @@
 .idea/
 .vscode/
 
+# Environment variables
+.env
+.env.local
+.env.development
+.env.production
+
+# If backend & frontend both have .env
+backend/.env
+frontend/.env
+
+
 # Dependencies
 node_modules/
 /node_modules

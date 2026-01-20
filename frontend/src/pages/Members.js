@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Search, Phone, Mail } from 'lucide-react';
+import { Search, Phone, Mail, CheckCircle } from 'lucide-react';
 import { MobileNav } from '../components/MobileNav';
 import { apiClient } from '../utils/auth';
 import { toast } from 'sonner';
@@ -94,7 +94,7 @@ export const Members = () => {
                 data-testid={`member-card-${index}`}
               >
                 <div className="absolute top-0 right-0 w-20 h-20 bg-primary/5 rounded-bl-full -mr-10 -mt-10 group-hover:scale-150 transition-transform" />
-                
+
                 <div className="flex items-center gap-4 mb-4">
                   <Avatar className="h-12 w-12">
                     <AvatarFallback className="bg-primary text-white font-bold">
@@ -103,9 +103,20 @@ export const Members = () => {
                   </Avatar>
                   <div>
                     <h3 className="text-lg font-bold text-neutral-800">{member.full_name}</h3>
-                    <span className="text-xs bg-status-success/10 text-status-success px-2 py-1 rounded-full font-medium">
-                      Active Member
-                    </span>
+                    <div className="flex gap-2">
+                      <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                        Active
+                      </span>
+                      {member.has_paid_current_month ? (
+                        <span className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider flex items-center gap-1">
+                          <CheckCircle size={10} /> Paid
+                        </span>
+                      ) : (
+                        <span className="text-[10px] bg-orange-50 text-orange-600 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                          Pending
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
